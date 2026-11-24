@@ -1,0 +1,51 @@
+"use client";
+import { useActionState, useState } from "react";
+import { postWish, type PostState } from "./actions";
+
+export function WishForm({ stripeEnabled, willPublish }: { stripeEnabled: boolean; willPublish: boolean }) {
+  const [state, action, pending] = useActionState<PostState, FormData>(postWish, {});
+  const [anon, setAnon] = useState(true);
+  return (
+    <form action={action} className="panel stack">
+      <div>
+        <label htmlFor="title">What do you wish for?</label>
+        <input id="title" name="title" type="text" maxLength={120} required placeholder="Warm winter boots, size 9" />
+      </div>
+      <div>
+        <label htmlFor="price">Price in USD <span className="hint">(minimum $5)</span></label>
+        <input id="price" name="price" type="number" min={5} step="0.01" required placeholder="45" />
+      </div>
+      <div>
+        <label htmlFor="description">A little context <span className="hint">(optional)</span></label>
+        <textarea id="description" name="description" maxLength={1000} />
+      </div>
+      <div>
+        <label><input type="checkbox" name="anonymous" checked={anon} onChange={(e) => setAnon(e.target.checked)} /> Post anonymously <span className="hint">(only the item and price are shown)</span></label>
+      </div>
+      {!anon && (
+        <>
+          <div><label htmlFor="display_name">Display name</label><input id="display_name" name="display_name" type="text" maxLength={60} /></div>
+          <div><label htmlFor="bio">Short bio <span className="hint">(optional, 280 chars)</span></label><textarea id="bio" name="bio" maxLength={280} /></div>
+        </>
+      )}
+      <hr style={{ border: 0, borderTop: "1px solid var(--line)", width: "100%" }} />
+      <div className="hint">How should gifts reach you? Add at least one. Money goes straight to you; we never hold it.</div>
+      <div>
+        <label htmlFor="btc_address">Bitcoin address <span className="hint">(use a fresh address for each wish)</span></label>
+        <input id="btc_address" name="btc_address" type="text" className="mono" placeholder="bc1q…" />
+      </div>
+      <div>
+        <label htmlFor="lightning_address">Lightning address <span className="hint">(name@provider, must support payment verification)</span></label>
+        <input id="lightning_address" name="lightning_address" type="text" placeholder="you@getalby.com" />
+      </div>
+      <div>
+        <label>
+          <input type="checkbox" name="accepts_stripe" disabled={!stripeEnabled} defaultChecked={stripeEnabled} /> Accept card payments{" "}
+          <span className="hint">{stripeEnabled ? "(you'll set up payouts when your first gift lands)" : "(coming soon)"}</span>
+        </label>
+      </div>
+      {state.error && <div className="notice err">{state.error}</div>}
+      <button className="btn" disabled={pending}>{pending ? "Checking…" : willPublish ? "Post my wish" : "Save my wish"}</button>
+    </form>
+  );
+}
