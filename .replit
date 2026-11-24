@@ -1,0 +1,14 @@
+modules = ["nodejs-22"]
+run = "cd site && npm install && npm run dev -- -H 0.0.0.0 -p 3000"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["sh", "-c", "cd site && npm ci && npm run build"]
+run = ["sh", "-c", "cd site && npm start -- -H 0.0.0.0 -p ${PORT:-3000}"]
+
+[[ports]]
+localPort = 3000
+externalPort = 80
