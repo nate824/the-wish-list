@@ -48,6 +48,7 @@ export default async function PayoutsPage({ searchParams }: {
           <>
             <div>Payouts are on. New card gifts go straight to your Stripe account, then to your bank.</div>
             <Link className="btn secondary" href="/api/stripe/connect/dashboard">See payouts on Stripe</Link>
+            <div className="hint">Stripe&apos;s payout fees (0.25% + 25¢ per gift, plus $2 in any month you get paid) come out of each gift. <Link href="/fees">Fees</Link></div>
           </>
         ) : (
           <>

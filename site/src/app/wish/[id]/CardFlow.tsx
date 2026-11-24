@@ -2,13 +2,14 @@
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { useState } from "react";
+import { PLATFORM_FEE_PERCENT } from "@/lib/payments/fees";
 
 const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
 const stripePromise = pk ? loadStripe(pk) : null;
 
-type Card = { priceCents: number; feeCents: number; totalCents: number };
+type Card = { priceCents: number; feeCents: number; totalCents: number; cardFeeCents: number; platformFeeCents: number };
 type PayResponse =
-  | { kind: "price_changed"; quote: { feeCents: number; totalCents: number; international: boolean; country: string | null } }
+  | { kind: "price_changed"; quote: { feeCents: number; totalCents: number; cardFeeCents: number; platformFeeCents: number; international: boolean; country: string | null } }
   | { kind: "succeeded" | "processing"; purchaseId: string }
   | { kind: "requires_action"; purchaseId: string; clientSecret: string };
 
@@ -30,7 +31,7 @@ export function CardFlow({ wishId, card }: { wishId: string; card: Card }) {
 function CardForm({ wishId, card }: { wishId: string; card: Card }) {
   const stripe = useStripe();
   const elements = useElements();
-  const [fee, setFee] = useState({ feeCents: card.feeCents, totalCents: card.totalCents, international: false });
+  const [fee, setFee] = useState({ cardFeeCents: card.cardFeeCents, platformFeeCents: card.platformFeeCents, totalCents: card.totalCents, international: false });
   const [country, setCountry] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -56,7 +57,7 @@ function CardForm({ wishId, card }: { wishId: string; card: Card }) {
 
       if (r.kind === "price_changed") {
         // Non-US card: show the new total and let them pay again. Nothing was charged.
-        setFee({ feeCents: r.quote.feeCents, totalCents: r.quote.totalCents, international: r.quote.international });
+        setFee({ cardFeeCents: r.quote.cardFeeCents, platformFeeCents: r.quote.platformFeeCents, totalCents: r.quote.totalCents, international: r.quote.international });
         setCountry(r.quote.country);
         elements.update({ amount: r.quote.totalCents });
         return;
@@ -81,9 +82,13 @@ function CardForm({ wishId, card }: { wishId: string; card: Card }) {
         <div className="row" style={{ justifyContent: "space-between" }}><span>Gift</span><span>{money(card.priceCents)}</span></div>
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="hint">
-            Card fee (Stripe&apos;s cut, so the wisher gets it all){fee.international && ", incl. 1.5% for a non-US card"}
+            Card processing (Stripe){fee.international && ", incl. 1.5% for a non-US card"}
           </span>
-          <span className="hint">{money(fee.feeCents)}</span>
+          <span className="hint">{money(fee.cardFeeCents)}</span>
+        </div>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <span className="hint">Service fee ({PLATFORM_FEE_PERCENT * 100}%, keeps the site running)</span>
+          <span className="hint">{money(fee.platformFeeCents)}</span>
         </div>
         <div className="row" style={{ justifyContent: "space-between" }}><b>You pay</b><b>{money(fee.totalCents)}</b></div>
       </div>
@@ -97,7 +102,7 @@ function CardForm({ wishId, card }: { wishId: string; card: Card }) {
       <button className="btn" disabled={busy || !stripe} onClick={pay}>
         {busy ? "Processing…" : `Pay ${money(fee.totalCents)}`}
       </button>
-      <div className="hint">Cards from outside the US add 1.5% (Stripe&apos;s international fee). Card details go straight to Stripe; we never see them.</div>
+      <div className="hint">Cards from outside the US add 1.5% (Stripe&apos;s international fee). Card details go straight to Stripe; we never see them. <a href="/fees">How fees work</a></div>
       {err && <div className="notice err">{err}</div>}
     </div>
   );

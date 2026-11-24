@@ -22,25 +22,10 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 export const STRIPE_ENABLED = !!process.env.STRIPE_SECRET_KEY;
 
-/** Stripe standard US card pricing. Confirm against the account's actual pricing before launch. */
-export const CARD_FEE_PERCENT = 0.029;
-export const CARD_FEE_FIXED_CENTS = 30;
-/** Stripe's extra fee when the card was issued outside the US (Nate, 2026-11-23: giver pays it). */
-export const INTL_CARD_FEE_PERCENT = 0.015;
-/** Stripe also adds ~1% when it converts currency. We charge and settle in USD, so it doesn't apply. */
+import { giverTotal, wisherFee } from "./fees";
+export { CARD_FEE_PERCENT, CARD_FEE_FIXED_CENTS, INTL_CARD_FEE_PERCENT, PLATFORM_FEE_PERCENT, giverTotal, wisherFee } from "./fees";
+/** We charge and settle in USD, so Stripe's ~1% currency conversion fee doesn't apply. */
 export const HOME_CARD_COUNTRY = "US";
-
-/**
- * Gross-up so the wisher gets the full price after Stripe's fee:
- *   charge = (price + fixed) / (1 - percent), rounded up to the cent.
- * US card:     $50 wish -> giver pays $51.81 (fee $1.81).
- * Non-US card: $50 wish -> giver pays $52.62 (fee $2.62), adding the 1.5% international fee.
- */
-export function giverTotal(priceCents: number, opts: { international?: boolean } = {}) {
-  const percent = CARD_FEE_PERCENT + (opts.international ? INTL_CARD_FEE_PERCENT : 0);
-  const totalCents = Math.ceil((priceCents + CARD_FEE_FIXED_CENTS) / (1 - percent));
-  return { totalCents, feeCents: totalCents - priceCents, international: !!opts.international };
-}
 
 export type CardQuote = ReturnType<typeof giverTotal> & { country: string | null };
 
@@ -105,6 +90,7 @@ export async function payCardGift(
       rail: "stripe",
       amount_usd_cents: wish.price_usd_cents,
       fee_usd_cents: quote.feeCents,
+      platform_fee_usd_cents: quote.platformFeeCents,
     })
     .select("id")
     .single();
@@ -217,7 +203,7 @@ export async function createCheckoutSession(
   buyer: { id: string; email?: string | null },
 ): Promise<{ url: string }> {
   const s = stripe();
-  const { totalCents, feeCents } = giverTotal(wish.price_usd_cents);
+  const { totalCents, feeCents, platformFeeCents } = giverTotal(wish.price_usd_cents);
 
   const { data: purchase, error } = await admin
     .from("purchases")
@@ -227,6 +213,7 @@ export async function createCheckoutSession(
       rail: "stripe",
       amount_usd_cents: wish.price_usd_cents,
       fee_usd_cents: feeCents,
+      platform_fee_usd_cents: platformFeeCents,
     })
     .select("id")
     .single();
@@ -251,7 +238,7 @@ export async function createCheckoutSession(
           price_data: {
             currency: "usd",
             unit_amount: feeCents,
-            product_data: { name: "Card processing fee", description: "Covers Stripe's fee so the wisher gets the full amount" },
+            product_data: { name: "Card processing + service fee", description: `Stripe's card fee plus 1% for ${SITE_NAME}` },
           },
         },
       ],
@@ -348,20 +335,33 @@ export async function transferToWisher(admin: Admin, purchaseId: string): Promis
   const pi = await s.paymentIntents.retrieve(p.stripe_payment_intent_id);
   const chargeId = typeof pi.latest_charge === "string" ? pi.latest_charge : pi.latest_charge?.id;
 
+  // Stripe's Connect costs come out of the gift: 0.25% + 25c, plus $2 on the wisher's first payout this month.
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const { count: paidThisMonth } = await admin
+    .from("purchases")
+    .select("id, wishes!purchases_wish_id_fkey!inner(user_id)", { count: "exact", head: true })
+    .eq("rail", "stripe")
+    .not("stripe_transfer_id", "is", null)
+    .gte("transferred_at", monthStart.toISOString())
+    .eq("wishes.user_id", wisherId);
+  const fee = wisherFee(p.amount_usd_cents, { firstThisMonth: !paidThisMonth });
+
   const transfer = await s.transfers.create(
     {
-      amount: p.amount_usd_cents, // the full wish price; the fee stays behind to pay Stripe
+      amount: fee.receiveCents, // wish price minus Stripe's payout costs; the giver's fees stay with the platform
       currency: "usd",
       destination: prof.stripe_account_id,
       transfer_group: `wish:${p.wish_id}`,
       source_transaction: chargeId, // transfer as soon as the charge's funds are available
-      metadata: { purchase_id: p.id, wish_id: p.wish_id },
+      metadata: { purchase_id: p.id, wish_id: p.wish_id, wisher_fee_cents: String(fee.feeCents) },
     },
     { idempotencyKey: `transfer-${p.id}` },
   );
   await admin
     .from("purchases")
-    .update({ stripe_transfer_id: transfer.id, transferred_at: new Date().toISOString() })
+    .update({ stripe_transfer_id: transfer.id, transferred_at: new Date().toISOString(), wisher_fee_usd_cents: fee.feeCents })
     .eq("id", p.id)
     .is("stripe_transfer_id", null);
   return "sent";

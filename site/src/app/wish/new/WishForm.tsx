@@ -1,10 +1,12 @@
 "use client";
 import { useActionState, useState } from "react";
 import { postWish, type PostState } from "./actions";
+import { usd, wisherFee } from "@/lib/payments/fees";
 
 export function WishForm({ stripeEnabled, willPublish }: { stripeEnabled: boolean; willPublish: boolean }) {
   const [state, action, pending] = useActionState<PostState, FormData>(postWish, {});
   const [anon, setAnon] = useState(true);
+  const [priceCents, setPriceCents] = useState(0);
   return (
     <form action={action} className="panel stack">
       <div>
@@ -13,7 +15,15 @@ export function WishForm({ stripeEnabled, willPublish }: { stripeEnabled: boolea
       </div>
       <div>
         <label htmlFor="price">Price in USD <span className="hint">(minimum $5)</span></label>
-        <input id="price" name="price" type="number" min={5} step="0.01" required placeholder="45" />
+        <input id="price" name="price" type="number" min={5} step="0.01" required placeholder="45"
+          onChange={(e) => setPriceCents(Math.round(Number(e.target.value) * 100) || 0)} />
+        {stripeEnabled && priceCents >= 500 && (
+          <span className="hint">
+            Paid by card, you&apos;d get about {usd(wisherFee(priceCents, { firstThisMonth: true }).receiveCents)} after
+            Stripe&apos;s payout fees ({usd(wisherFee(priceCents, { firstThisMonth: false }).receiveCents)} if you already got a
+            card gift this month). Bitcoin gifts arrive in full. <a href="/fees" target="_blank">Fees</a>
+          </span>
+        )}
       </div>
       <div>
         <label htmlFor="description">A little context <span className="hint">(optional)</span></label>

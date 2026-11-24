@@ -29,7 +29,7 @@ function Copy({ text }: { text: string }) {
 
 export function BuyPanel({ wishId, rails, signedIn, demo, card }: {
   wishId: string; rails: Record<Rail, boolean>; signedIn: boolean; demo: boolean;
-  card?: { priceCents: number; feeCents: number; totalCents: number };
+  card?: { priceCents: number; feeCents: number; totalCents: number; cardFeeCents: number; platformFeeCents: number };
 }) {
   const available = (["btc", "lightning", "card"] as Rail[]).filter((r) => rails[r]);
   const [rail, setRail] = useState<Rail>(available[0] ?? "btc");
@@ -51,7 +51,7 @@ export function BuyPanel({ wishId, rails, signedIn, demo, card }: {
         {rails.btc && <button type="button" className={`rail ${rail === "btc" ? "on" : ""}`} onClick={() => setRail("btc")}>Bitcoin<small>on-chain</small></button>}
         {rails.lightning && <button type="button" className={`rail ${rail === "lightning" ? "on" : ""}`} onClick={() => setRail("lightning")}>Lightning<small>fast, low fee</small></button>}
         {rails.card ? (
-          <button type="button" className={`rail ${rail === "card" ? "on" : ""}`} onClick={() => setRail("card")}>Card / Apple Pay<small>+ card fee</small></button>
+          <button type="button" className={`rail ${rail === "card" ? "on" : ""}`} onClick={() => setRail("card")}>Card / Apple Pay<small>+ card &amp; service fee</small></button>
         ) : (
           <button type="button" className="rail" disabled title="This wish doesn't take cards">Card / Apple Pay<small>not offered</small></button>
         )}
