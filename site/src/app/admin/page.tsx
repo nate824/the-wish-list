@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { DEMO_MODE, usd } from "@/lib/config";
 import { getMe } from "@/lib/data";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { BIO_VIDEO_BUCKET, bioVideoUrl } from "@/lib/bioVideo";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,22 @@ async function decide(form: FormData) {
   revalidatePath("/admin");
 }
 
+/** Moderation: hide a bio video. Deletes the file (the bucket is public) and keeps the profile flagged. */
+async function hideVideo(form: FormData) {
+  "use server";
+  const me = await getMe();
+  if (!me?.isAdmin) throw new Error("not allowed");
+  const userId = String(form.get("user_id"));
+  const path = String(form.get("path"));
+  const admin = supabaseAdmin();
+  await admin.from("profiles").update({ bio_video_hidden: true, bio_video_path: null })
+    .eq("user_id", userId).eq("bio_video_path", path);
+  await admin.storage.from(BIO_VIDEO_BUCKET).remove([path]);
+  revalidatePath("/admin");
+}
+
+type VideoRow = { user_id: string; display_name: string | null; bio_video_path: string; bio_video_updated_at: string | null };
+
 type Row = {
   id: string; txid: string | null; amount_usd_cents: number; btc_amount_sats: number | null;
   created_at: string; review_note: string | null; wishes: { title: string; btc_address: string | null } | null;
@@ -36,6 +53,13 @@ export default async function Admin() {
     .eq("status", "review")
     .order("created_at");
   const rows = (data ?? []) as unknown as Row[];
+  const { data: vids } = await supabaseAdmin()
+    .from("profiles")
+    .select("user_id, display_name, bio_video_path, bio_video_updated_at")
+    .not("bio_video_path", "is", null)
+    .order("bio_video_updated_at", { ascending: false, nullsFirst: false })
+    .limit(30);
+  const videos = (vids ?? []) as VideoRow[];
 
   return (
     <div style={{ paddingTop: 32 }} className="stack">
@@ -61,6 +85,23 @@ export default async function Admin() {
             ))}
           </tbody>
         </table>
+      )}
+      <h2 className="section">Recent bio videos</h2>
+      <p className="hint">Newest first. Hide deletes the file and blocks that user&apos;s future videos from showing until you clear bio_video_hidden.</p>
+      {videos.length === 0 ? <div className="notice">No bio videos yet.</div> : (
+        <div className="stack">
+          {videos.map((v) => (
+            <div key={v.user_id} className="panel stack">
+              <b>{v.display_name ?? "(no name)"}</b>
+              <video src={bioVideoUrl(v.bio_video_path)} controls preload="metadata" style={{ width: "100%", maxHeight: 280, background: "#000" }} />
+              <form action={hideVideo}>
+                <input type="hidden" name="user_id" value={v.user_id} />
+                <input type="hidden" name="path" value={v.bio_video_path} />
+                <button className="btn small secondary">Hide video</button>
+              </form>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

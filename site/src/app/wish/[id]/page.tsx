@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DEMO_MODE, usd } from "@/lib/config";
-import { getMe, getWish } from "@/lib/data";
+import { getMe, getWish, getWishBioVideo } from "@/lib/data";
 import { STRIPE_ENABLED, giverTotal } from "@/lib/payments/stripe";
 import { BuyPanel } from "./BuyPanel";
 
@@ -13,7 +13,7 @@ export default async function WishPage({ params, searchParams }: {
 }) {
   const { id } = await params;
   const { posted, paid, saved } = await searchParams;
-  const [wish, me] = await Promise.all([getWish(id), getMe()]);
+  const [wish, me, bioVideo] = await Promise.all([getWish(id), getMe(), getWishBioVideo(id)]);
   if (!wish) notFound();
 
   return (
@@ -36,6 +36,10 @@ export default async function WishPage({ params, searchParams }: {
         <div className="hint">
           {wish.is_anonymous ? "Anonymous wisher" : <><b>{wish.display_name}</b>{wish.bio && ` · ${wish.bio}`}</>}
         </div>
+        {bioVideo && !wish.is_anonymous && (
+          <video src={bioVideo} controls playsInline preload="metadata"
+            style={{ width: "100%", maxHeight: 420, borderRadius: 10, background: "#000" }} />
+        )}
       </div>
 
       {wish.status === "draft" ? (

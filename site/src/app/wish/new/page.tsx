@@ -33,7 +33,7 @@ export default async function NewWish() {
               Write your wish now. It stays private until you fund someone else&apos;s wish, then it goes live automatically.
             </div>
           )}
-          <WishForm stripeEnabled={STRIPE_ENABLED} willPublish={willPublish} />
+          <WishForm stripeEnabled={STRIPE_ENABLED} willPublish={willPublish} userId={me?.id ?? null} />
         </>
       )}
     </div>
