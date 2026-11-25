@@ -25,7 +25,7 @@ export default async function Home() {
 
       <div className="steps">
         <div className="step"><span className="n">1</span><b>Make a wish.</b>What&apos;s a gift you&apos;d really love?</div>
-        <div className="step"><span className="n">2</span><b>Grant someone&apos;s wish.</b>A stranger somewhere is hoping.</div>
+        <div className="step"><span className="n">2</span><b>Grant someone&apos;s wish.</b>Cover the whole gift, or chip in with others.</div>
         <div className="step"><span className="n">3</span><b>Get yours granted.</b>Someone out there has your back.</div>
       </div>
 
