@@ -1,24 +1,18 @@
 import Link from "next/link";
 import { WishCard } from "@/components/WishCard";
-import { FOUNDING_CAP } from "@/lib/config";
-import { getFeed, getFoundingSpotsLeft } from "@/lib/data";
+import { getFeed } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [spotsLeft, { wishes }] = await Promise.all([getFoundingSpotsLeft(), getFeed("all", 0)]);
+  const { wishes } = await getFeed("all", 0);
   return (
     <>
       <section className="hero">
-        {spotsLeft > 0 && (
-          <div className="counter">
-            <strong>{spotsLeft}</strong> of {FOUNDING_CAP} founding spots left: post your first wish free
-          </div>
-        )}
-        <h1>Give a gift. Then make a wish.</h1>
+        <h1>Make a wish. Give to move it up.</h1>
         <p className="lead">
-          A worldwide gift exchange. Fund a stranger&apos;s wish, any size, and you unlock one of your own.
-          Every wish here is waiting on someone like you.
+          A worldwide gift exchange. Post a wish for free. Chip in on a stranger&apos;s, any amount, and yours
+          climbs the list. The more you give, the more people see your wish.
         </p>
         <div className="row">
           <Link href="/feed" className="btn">Fund a wish</Link>
@@ -27,12 +21,12 @@ export default async function Home() {
       </section>
 
       <div className="steps">
-        <div className="step"><span className="n">1</span><b>Pick a wish</b>Oldest wishes come first, mixed across small, mid and big.</div>
-        <div className="step"><span className="n">2</span><b>Send the gift</b>Pay the wisher directly with Bitcoin, Lightning, or card (soon). We never touch the money.</div>
-        <div className="step"><span className="n">3</span><b>Post your own</b>One gift sent unlocks one wish. Anonymous or with your name, your call.</div>
+        <div className="step"><span className="n">1</span><b>Post your wish</b>Up to $500. Anonymous or with your name, your call. It goes live right away.</div>
+        <div className="step"><span className="n">2</span><b>Chip in on others</b>Any amount from $5. Cards are only charged once a wish is fully covered.</div>
+        <div className="step"><span className="n">3</span><b>Climb the list</b>Wishes from people who give rank first. Givers get seen.</div>
       </div>
 
-      <h2 className="section">Waiting longest</h2>
+      <h2 className="section">Top of the list</h2>
       <div className="grid">
         {wishes.slice(0, 8).map((w) => <WishCard key={w.id} wish={w} />)}
       </div>

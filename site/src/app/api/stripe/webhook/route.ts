@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { fail } from "@/lib/api";
 import { handleCheckoutCompleted, handlePaymentIntentFailed, handlePaymentIntentSucceeded, stripe } from "@/lib/payments/stripe";
+import { finalizePledge } from "@/lib/payments/pledges";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 // Platform (v1, snapshot) events. Endpoint secret: STRIPE_WEBHOOK_SECRET
 // (`stripe listen --forward-to localhost:3000/api/stripe/webhook` prints one for local dev).
 //   payment_intent.succeeded      -> card gift verified, transfer if the wisher is ready
-//   payment_intent.payment_failed -> pending card gift rejected
+//   payment_intent.payment_failed -> pending card gift rejected / pledge charge failed (gap reopens)
+//   setup_intent.succeeded        -> card chip-in saved after 3-D Secure -> pledge recorded
 //   checkout.session.completed / async_payment_succeeded -> legacy hosted Checkout sessions
 export async function POST(req: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -27,6 +29,10 @@ export async function POST(req: Request) {
         break;
       case "payment_intent.payment_failed":
         await handlePaymentIntentFailed(supabaseAdmin(), event.data.object);
+        break;
+      case "setup_intent.succeeded":
+        // Card chip-in saved after 3-D Secure, in case the giver closed the tab before we heard back.
+        if (event.data.object.metadata?.kind === "pledge") await finalizePledge(supabaseAdmin(), event.data.object);
         break;
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded":
