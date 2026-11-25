@@ -5,8 +5,8 @@ import { DEMO_MODE, SITE_NAME } from "@/lib/config";
 import { getMe } from "@/lib/data";
 
 export const metadata: Metadata = {
-  title: `${SITE_NAME} — give a gift, make a wish`,
-  description: "A worldwide gift exchange. Fund a stranger's wish, then post your own.",
+  title: `${SITE_NAME} — a worldwide Secret Santa`,
+  description: "A worldwide Secret Santa. Make a wish, grant someone else's, get yours granted.",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
