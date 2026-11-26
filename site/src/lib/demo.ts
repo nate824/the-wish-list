@@ -37,6 +37,10 @@ export const DEMO_WISHES: PublicWish[] = raw.map(([title, cents, name, bio, days
   btc_address: "bc1q-demo-address",
   lightning_address: i % 2 === 0 ? "demo@getalby.com" : null,
   accepts_stripe: true,
+  collected_usd_cents: i % 3 === 0 ? Math.round(cents * 0.4) : 0,
+  pledged_usd_cents: i % 4 === 1 ? Math.round(cents * 0.25) : 0,
+  funding_deadline: i % 4 === 1 ? new Date(Date.now() + (5 + i) * 86400_000).toISOString() : null,
+  owner_score: [0, 3, 0, 7, 1, 0, 2, 12, 0, 0, 4, 0, 0, 1, 5, 0][i] ?? 0,
 }));
 
 export const DEMO_FOUNDING_LEFT = 73;

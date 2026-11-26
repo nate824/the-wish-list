@@ -1,20 +1,14 @@
 import Link from "next/link";
 import { WishCard } from "@/components/WishCard";
-import { FOUNDING_CAP } from "@/lib/config";
-import { getFeed, getFoundingSpotsLeft } from "@/lib/data";
+import { getFeed } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [spotsLeft, { wishes }] = await Promise.all([getFoundingSpotsLeft(), getFeed("all", 0)]);
+  const { wishes } = await getFeed("all", 0);
   return (
     <>
       <section className="hero">
-        {spotsLeft > 0 && (
-          <div className="counter">
-            <strong>{spotsLeft}</strong> of {FOUNDING_CAP} founding spots left: post your first wish free
-          </div>
-        )}
         <h1>The Wish List</h1>
         <p className="lead">A worldwide Secret Santa.</p>
         <div className="row">
@@ -29,7 +23,7 @@ export default async function Home() {
         <div className="step"><span className="n">3</span><b>Get yours granted.</b>Someone out there has your back.</div>
       </div>
 
-      <h2 className="section">Waiting longest</h2>
+      <h2 className="section">Top of the list</h2>
       <div className="grid">
         {wishes.slice(0, 8).map((w) => <WishCard key={w.id} wish={w} />)}
       </div>

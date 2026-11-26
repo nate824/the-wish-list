@@ -21,6 +21,7 @@ export default async function Feed({ searchParams }: { searchParams: Promise<{ t
   return (
     <div style={{ paddingTop: 32 }}>
       <h2 className="section">Wishes waiting to be funded</h2>
+      <p className="hint" style={{ marginTop: -8 }}>Wishers who give rank first (⭐ = giving points), then whoever has waited longest. Chip in any amount.</p>
       <div className="tabs">
         <Link href={href("all")} className={tier === "all" ? "on" : ""}>All</Link>
         {TIERS.map((t) => (

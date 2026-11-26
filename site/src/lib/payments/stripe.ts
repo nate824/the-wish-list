@@ -58,86 +58,8 @@ export function stripe(): Stripe {
 type Admin = ReturnType<typeof supabaseAdmin>;
 
 // ---------------------------------------------------------------------------
-// Card payment (giver side): Payment Element + ConfirmationToken + PaymentIntent
+// Card payment (giver side). Card gifts are now pledges: see ./pledges.ts.
 // ---------------------------------------------------------------------------
-
-export type CardPayResult =
-  | { kind: "price_changed"; quote: CardQuote }
-  | { kind: "succeeded" | "processing"; purchaseId: string }
-  | { kind: "requires_action"; purchaseId: string; clientSecret: string }
-  | { kind: "declined"; message: string };
-
-/**
- * Prices the gift from the card's country, and charges it only if the total matches what the
- * giver was shown (`expectedTotalCents`). If not (non-US card), returns the new quote so the
- * page can show it and ask again: nobody is charged more than they saw.
- */
-export async function payCardGift(
-  admin: Admin,
-  wish: { id: string; title: string; price_usd_cents: number },
-  buyer: { id: string; email?: string | null },
-  confirmationTokenId: string,
-  expectedTotalCents: number,
-): Promise<CardPayResult> {
-  const quote = await quoteFromConfirmationToken(wish.price_usd_cents, confirmationTokenId);
-  if (quote.totalCents !== expectedTotalCents) return { kind: "price_changed", quote };
-
-  const { data: purchase, error } = await admin
-    .from("purchases")
-    .insert({
-      wish_id: wish.id,
-      buyer_id: buyer.id,
-      rail: "stripe",
-      amount_usd_cents: wish.price_usd_cents,
-      fee_usd_cents: quote.feeCents,
-      platform_fee_usd_cents: quote.platformFeeCents,
-    })
-    .select("id")
-    .single();
-  if (error || !purchase) throw new Error(error?.message ?? "Could not start the purchase.");
-
-  const meta = {
-    purchase_id: purchase.id,
-    wish_id: wish.id,
-    buyer_id: buyer.id,
-    card_country: quote.country ?? "",
-    international_fee: String(quote.international),
-  };
-  let pi: Stripe.PaymentIntent;
-  try {
-    pi = await stripe().paymentIntents.create(
-      {
-        amount: quote.totalCents,
-        currency: "usd",
-        allowed_payment_method_types: ["card"], // Apple Pay / Google Pay are cards too
-        confirm: true,
-        confirmation_token: confirmationTokenId,
-        description: `Gift: ${wish.title}`.slice(0, 250),
-        receipt_email: buyer.email ?? undefined,
-        transfer_group: `wish:${wish.id}`,
-        metadata: meta,
-        return_url: `${SITE_URL}/wish/${wish.id}?paid=1`,
-      },
-      { idempotencyKey: `pi-${purchase.id}` },
-    );
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Card payment failed.";
-    await admin.from("purchases").update({ status: "rejected", review_note: `card declined: ${message}` }).eq("id", purchase.id);
-    return { kind: "declined", message };
-  }
-
-  await admin.from("purchases").update({ stripe_payment_intent_id: pi.id }).eq("id", purchase.id);
-  if (pi.status === "succeeded") {
-    await markCardGiftPaid(admin, purchase.id, pi.id); // webhook does the same; both are idempotent
-    return { kind: "succeeded", purchaseId: purchase.id };
-  }
-  if (pi.status === "requires_action" && pi.client_secret) {
-    return { kind: "requires_action", purchaseId: purchase.id, clientSecret: pi.client_secret };
-  }
-  if (pi.status === "processing") return { kind: "processing", purchaseId: purchase.id };
-  await admin.from("purchases").update({ status: "rejected", review_note: `payment intent ${pi.status}` }).eq("id", purchase.id);
-  return { kind: "declined", message: "The card wasn't charged. Try another card." };
-}
 
 /** Webhook: payment_intent.succeeded for a card gift. */
 export async function handlePaymentIntentSucceeded(admin: Admin, pi: Stripe.PaymentIntent) {
@@ -146,19 +68,21 @@ export async function handlePaymentIntentSucceeded(admin: Admin, pi: Stripe.Paym
   await markCardGiftPaid(admin, purchaseId, pi.id);
 }
 
-/** Webhook: payment_intent.payment_failed (e.g. 3-D Secure failed). */
+/** Webhook: payment_intent.payment_failed (e.g. 3-D Secure failed, or a pledge's off-session charge declined). */
 export async function handlePaymentIntentFailed(admin: Admin, pi: Stripe.PaymentIntent) {
   const purchaseId = pi.metadata?.purchase_id;
   if (!purchaseId) return;
+  const note = pi.last_payment_error?.message ?? "card payment failed";
+  await admin.from("purchases").update({ status: "rejected", review_note: note }).eq("id", purchaseId).eq("status", "pending");
   await admin
     .from("purchases")
-    .update({ status: "rejected", review_note: pi.last_payment_error?.message ?? "card payment failed" })
+    .update({ status: "rejected", charge_failed_at: new Date().toISOString(), review_note: `pledge charge failed: ${note}` })
     .eq("id", purchaseId)
-    .eq("status", "pending");
+    .eq("status", "charging");
 }
 
-/** Marks a card gift verified (wish funded, giver's draft published) and sends it on if the wisher is ready. */
-async function markCardGiftPaid(admin: Admin, purchaseId: string, paymentIntentId: string) {
+/** Marks a card gift or charged pledge verified (counts toward the wish) and sends it on if the wisher is ready. */
+export async function markCardGiftPaid(admin: Admin, purchaseId: string, paymentIntentId: string) {
   const { data: p } = await admin
     .from("purchases")
     .select("id, status, rail, stripe_payment_intent_id")
@@ -170,14 +94,13 @@ async function markCardGiftPaid(admin: Admin, purchaseId: string, paymentIntentI
     await transferToWisher(admin, p.id);
     return;
   }
-  if (p.status !== "pending") return;
+  if (p.status !== "pending" && p.status !== "charging") return;
 
   const { error } = await admin
     .from("purchases")
     .update({ status: "verified", stripe_payment_intent_id: paymentIntentId })
     .eq("id", p.id);
   if (error) {
-    // Most likely someone else funded this wish first (one verified payment per wish).
     await admin
       .from("purchases")
       .update({
@@ -346,7 +269,13 @@ export async function transferToWisher(admin: Admin, purchaseId: string): Promis
     .not("stripe_transfer_id", "is", null)
     .gte("transferred_at", monthStart.toISOString())
     .eq("wishes.user_id", wisherId);
-  const fee = wisherFee(p.amount_usd_cents, { firstThisMonth: !paidThisMonth });
+  // Pooled wishes get several transfers; charge the fixed 25c once per wish, not per chip-in.
+  const { count: sentForWish } = await admin
+    .from("purchases")
+    .select("id", { count: "exact", head: true })
+    .eq("wish_id", p.wish_id)
+    .not("stripe_transfer_id", "is", null);
+  const fee = wisherFee(p.amount_usd_cents, { firstThisMonth: !paidThisMonth, firstForWish: !sentForWish });
 
   const transfer = await s.transfers.create(
     {

@@ -4,6 +4,7 @@ import { DEMO_MODE } from "@/lib/config";
 import { isValidBtcAddress } from "@/lib/payments/btc";
 import { validateLightningAddress } from "@/lib/payments/lightning";
 import { supabaseServer } from "@/lib/supabase/server";
+import { BIO_VIDEO_BUCKET, isValidBioVideoPath } from "@/lib/bioVideo";
 
 export type PostState = { error?: string };
 
@@ -16,12 +17,15 @@ export async function postWish(_prev: PostState, form: FormData): Promise<PostSt
   const isAnonymous = form.get("anonymous") === "on";
   const displayName = String(form.get("display_name") ?? "").trim();
   const bio = String(form.get("bio") ?? "").trim();
+  const bioVideoPath = String(form.get("bio_video_path") ?? "").trim();
   const btc = String(form.get("btc_address") ?? "").trim();
   const ln = String(form.get("lightning_address") ?? "").trim().toLowerCase();
   const stripe = form.get("accepts_stripe") === "on";
 
   if (title.length < 3) return { error: "Give your wish a title." };
   if (!Number.isFinite(price) || price < 5) return { error: "Minimum wish price is $5." };
+  const maxPrice = Number(form.get("max_price_cents")) / 100;
+  if (maxPrice > 0 && price > maxPrice) return { error: `Wishes can be up to $${maxPrice.toLocaleString()} for now.` };
   if (!btc && !ln && !stripe) return { error: "Add at least one way to receive the gift." };
   if (btc && !isValidBtcAddress(btc)) return { error: "That Bitcoin address isn't valid (mainnet)." };
   if (ln) {
@@ -34,8 +38,24 @@ export async function postWish(_prev: PostState, form: FormData): Promise<PostSt
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect("/login?next=/wish/new");
 
+  if (bioVideoPath && !isValidBioVideoPath(bioVideoPath, user.id)) return { error: "That video upload didn't check out. Try again." };
+
   if (!isAnonymous) {
     await sb.from("profiles").update({ display_name: displayName, bio: bio || null, is_anonymous: false }).eq("user_id", user.id);
+    // Bio video only changes when a new one was uploaded; leaving it blank keeps the current one.
+    if (bioVideoPath) {
+      const { data: prev } = await sb.from("profiles").select("bio_video_path").eq("user_id", user.id).maybeSingle();
+      const { error: vErr } = await sb.from("profiles")
+        .update({ bio_video_path: bioVideoPath, bio_video_updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+      if (vErr) return { error: `Couldn't save your video: ${vErr.message}` };
+      if (prev?.bio_video_path && prev.bio_video_path !== bioVideoPath) {
+        await sb.storage.from(BIO_VIDEO_BUCKET).remove([prev.bio_video_path]);
+      }
+    }
+  } else if (bioVideoPath) {
+    // Posting anonymously: don't keep a video nobody will see.
+    await sb.storage.from(BIO_VIDEO_BUCKET).remove([bioVideoPath]);
   }
 
   // TODO: Turnstile check here (plan section 6)
@@ -49,12 +69,11 @@ export async function postWish(_prev: PostState, form: FormData): Promise<PostSt
     p_accepts_stripe: stripe,
   });
   if (error) {
-    if (error.message.includes("DRAFT_EXISTS")) {
-      return { error: "You already have a wish waiting. Fund someone else's wish and it goes live." };
+    if (error.message.includes("PRICE_CAP") || error.message.includes("OPEN_LIMIT")) {
+      return { error: error.message.replace(/^.*(PRICE_CAP|OPEN_LIMIT): /, "") + "." };
     }
     return { error: error.message };
   }
-  // Live right away (unused gift or Founding pass), or saved as a private draft until they give.
-  const { data: saved } = await sb.from("wishes").select("status").eq("id", id).single();
-  redirect(`/wish/${id}?${saved?.status === "draft" ? "saved" : "posted"}=1`);
+  // Always live. Where it ranks depends on how much the wisher gives.
+  redirect(`/wish/${id}?posted=1`);
 }

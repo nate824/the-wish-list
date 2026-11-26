@@ -27,18 +27,29 @@ function Copy({ text }: { text: string }) {
   );
 }
 
-export function BuyPanel({ wishId, rails, signedIn, demo, card }: {
+const money = (c: number) => (c / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+export function BuyPanel({ wishId, rails, signedIn, demo, leftCents, minCents, windowDays, deadline }: {
   wishId: string; rails: Record<Rail, boolean>; signedIn: boolean; demo: boolean;
-  card?: { priceCents: number; feeCents: number; totalCents: number; cardFeeCents: number; platformFeeCents: number };
+  leftCents: number; minCents: number; windowDays: number; deadline: string | null;
 }) {
   const available = (["btc", "lightning", "card"] as Rail[]).filter((r) => rails[r]);
   const [rail, setRail] = useState<Rail>(available[0] ?? "btc");
+  // Chip-in amount: default covers the rest. Locked once a flow has started (flows remount on change).
+  const [amountText, setAmountText] = useState((leftCents / 100).toFixed(2));
+  const amountCents = Math.round(Number(amountText) * 100) || 0;
+  const amountOk = amountCents >= minCents && amountCents <= leftCents;
+  const presets = [1000, 2500, 5000, 10000].filter((c) => c >= minCents && c < leftCents);
 
   if (demo) return <div className="notice">Payments are off in demo mode.</div>;
+  if (leftCents <= 0) {
+    return <div className="notice ok">Fully pledged! It&apos;s being charged now and will show as funded shortly.</div>;
+  }
   if (!signedIn) {
     return (
       <div className="panel stack">
-        <b>Fund this wish</b>
+        <b>Chip in on this wish</b>
+        <div className="hint">Give any amount from {money(minCents)}. Every gift you give moves your own wishes up the list.</div>
         <a className="btn" href={`/login?next=/wish/${wishId}`}>Sign in to give</a>
       </div>
     );
@@ -46,24 +57,40 @@ export function BuyPanel({ wishId, rails, signedIn, demo, card }: {
 
   return (
     <div className="panel stack">
-      <b>Fund this wish</b>
+      <b>Chip in on this wish</b>
+      <div className="stack" style={{ gap: 6 }}>
+        <label htmlFor="amount">How much? <span className="hint">({money(minCents)} to {money(leftCents)})</span></label>
+        <div className="amounts">
+          {presets.map((c) => (
+            <button key={c} type="button" className={`btn small ${amountCents === c ? "" : "secondary"}`} onClick={() => setAmountText((c / 100).toFixed(2))}>{money(c)}</button>
+          ))}
+          <button type="button" className={`btn small ${amountCents === leftCents ? "" : "secondary"}`} onClick={() => setAmountText((leftCents / 100).toFixed(2))}>All of it ({money(leftCents)})</button>
+        </div>
+        <input id="amount" type="number" min={minCents / 100} max={leftCents / 100} step="0.01" value={amountText} onChange={(e) => setAmountText(e.target.value)} />
+        {!amountOk && <span className="hint" style={{ color: "var(--accent)" }}>Pick an amount between {money(minCents)} and {money(leftCents)}.</span>}
+      </div>
       <div className="rails">
         {rails.btc && <button type="button" className={`rail ${rail === "btc" ? "on" : ""}`} onClick={() => setRail("btc")}>Bitcoin<small>on-chain</small></button>}
         {rails.lightning && <button type="button" className={`rail ${rail === "lightning" ? "on" : ""}`} onClick={() => setRail("lightning")}>Lightning<small>fast, low fee</small></button>}
         {rails.card ? (
-          <button type="button" className={`rail ${rail === "card" ? "on" : ""}`} onClick={() => setRail("card")}>Card / Apple Pay<small>+ card &amp; service fee</small></button>
+          <button type="button" className={`rail ${rail === "card" ? "on" : ""}`} onClick={() => setRail("card")}>Card / Apple Pay<small>charged only if it fills</small></button>
         ) : (
           <button type="button" className="rail" disabled title="This wish doesn't take cards">Card / Apple Pay<small>not offered</small></button>
         )}
       </div>
-      {rail === "btc" && rails.btc && <BtcFlow wishId={wishId} />}
-      {rail === "lightning" && rails.lightning && <LightningFlow wishId={wishId} />}
-      {rail === "card" && rails.card && card && <CardFlow wishId={wishId} card={card} />}
+      {rail !== "card" && amountCents < leftCents && (
+        <div className="hint">Bitcoin and Lightning go straight to the wisher now, even if the rest isn&apos;t raised. Cards are only charged once the whole wish is covered.</div>
+      )}
+      {amountOk && rail === "btc" && rails.btc && <BtcFlow key={amountCents} wishId={wishId} amountCents={amountCents} />}
+      {amountOk && rail === "lightning" && rails.lightning && <LightningFlow key={amountCents} wishId={wishId} amountCents={amountCents} />}
+      {amountOk && rail === "card" && rails.card && (
+        <CardFlow key={amountCents} wishId={wishId} amountCents={amountCents} completes={amountCents === leftCents} windowDays={windowDays} deadline={deadline} />
+      )}
     </div>
   );
 }
 
-function BtcFlow({ wishId }: { wishId: string }) {
+function BtcFlow({ wishId, amountCents }: { wishId: string; amountCents: number }) {
   const [quote, setQuote] = useState<{ purchaseId: string; address: string; sats: number; expiresAt: string } | null>(null);
   const [txid, setTxid] = useState("");
   const [claim, setClaim] = useState<{ message: string; inputAddresses: string[] } | null>(null);
@@ -78,13 +105,13 @@ function BtcFlow({ wishId }: { wishId: string }) {
     try { return await fn(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
 
-  if (done === "verified") return <div className="notice ok">Gift verified. Thank you! If you saved a wish, it&apos;s live now. If not, <a href="/wish/new">make one</a>.</div>;
-  if (done === "review") return <div className="notice">Got it. A person will check your transaction and unlock your wish once it&apos;s confirmed.</div>;
+  if (done === "verified") return <div className="notice ok">Gift verified. Thank you! Your giving score just went up, so your wishes rank higher. No wish yet? <a href="/wish/new">Make one</a>.</div>;
+  if (done === "review") return <div className="notice">Got it. A person will check your transaction. It counts toward the wish (and your score) once it&apos;s confirmed.</div>;
 
   if (!quote) {
     return (
       <>
-        <button className="btn" disabled={busy} onClick={() => run(async () => setQuote(await post("/api/btc/quote", { wishId })))}>
+        <button className="btn" disabled={busy} onClick={() => run(async () => setQuote(await post("/api/btc/quote", { wishId, amountCents })))}>
           {busy ? "Getting price…" : "Show me how much BTC"}
         </button>
         {err && <div className="notice err">{err}</div>}
@@ -142,7 +169,7 @@ function BtcFlow({ wishId }: { wishId: string }) {
   );
 }
 
-function LightningFlow({ wishId }: { wishId: string }) {
+function LightningFlow({ wishId, amountCents }: { wishId: string; amountCents: number }) {
   const [inv, setInv] = useState<{ purchaseId: string; invoice: string; sats: number; expiresAt: string; mode: "verify" | "wisher" } | null>(null);
   const [status, setStatus] = useState("idle");
   const [err, setErr] = useState("");
@@ -157,10 +184,10 @@ function LightningFlow({ wishId }: { wishId: string }) {
     return () => clearInterval(t);
   }, [inv, status]);
 
-  if (status === "verified") return <div className="notice ok">Paid and verified. Thank you! If you saved a wish, it&apos;s live now. If not, <a href="/wish/new">make one</a>.</div>;
-  if (status === "review") return <div className="notice">Thanks! We&apos;re double-checking this gift. Your wish unlocks once it clears.</div>;
+  if (status === "verified") return <div className="notice ok">Paid and verified. Thank you! Your giving score just went up, so your wishes rank higher. No wish yet? <a href="/wish/new">Make one</a>.</div>;
+  if (status === "review") return <div className="notice">Thanks! We&apos;re double-checking this gift. It counts toward your score once it clears.</div>;
   if (status === "rejected") return <div className="notice err">The wisher says this payment didn&apos;t arrive. If you did pay, check your wallet&apos;s history.</div>;
-  if (status === "awaiting_wisher") return <div className="notice ok">Sent! The wisher&apos;s wallet can&apos;t confirm on its own, so we&apos;ve asked them to confirm. Your wish unlocks when they do. You can close this page.</div>;
+  if (status === "awaiting_wisher") return <div className="notice ok">Sent! The wisher&apos;s wallet can&apos;t confirm on its own, so we&apos;ve asked them to confirm. It counts toward your score when they do. You can close this page.</div>;
   if (status === "expired") return <div className="notice">That invoice expired. <button className="btn small" onClick={() => { setInv(null); setStatus("idle"); }}>Get a new one</button></div>;
 
   if (!inv) {
@@ -168,7 +195,7 @@ function LightningFlow({ wishId }: { wishId: string }) {
       <>
         <button className="btn" disabled={status === "loading"} onClick={async () => {
           setErr(""); setStatus("loading");
-          try { setInv(await post("/api/lightning/invoice", { wishId })); setStatus("waiting"); }
+          try { setInv(await post("/api/lightning/invoice", { wishId, amountCents })); setStatus("waiting"); }
           catch (e) { setErr(e instanceof Error ? e.message : String(e)); setStatus("idle"); }
         }}>{status === "loading" ? "Asking the wisher's wallet…" : "Get Lightning invoice"}</button>
         {err && <div className="notice err">{err}</div>}
@@ -199,6 +226,4 @@ function LightningFlow({ wishId }: { wishId: string }) {
     </div>
   );
 }
-
-const money = (c: number) => (c / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
 

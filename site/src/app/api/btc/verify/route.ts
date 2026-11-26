@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { fail, requireBuyer } from "@/lib/api";
 import { checkTx, verifyClaimSignature } from "@/lib/payments/btc";
+import { afterChipInVerified } from "@/lib/payments/pledges";
 
 // Step 3: buyer signs the claim message with one of the tx's input addresses (BIP-322).
 // Can't sign (exchange withdrawals)? -> manual review queue.
@@ -37,5 +38,6 @@ export async function POST(req: Request) {
     .update({ status: "verified", sender_address: address, signature: body.signature })
     .eq("id", p.id);
   if (error) return fail(error.message, 500);
+  await afterChipInVerified(auth.admin, p.id); // may have closed the gap: charge the card pledges
   return NextResponse.json({ status: "verified" });
 }
