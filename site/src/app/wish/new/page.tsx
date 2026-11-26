@@ -20,7 +20,7 @@ export default async function NewWish() {
           ? <>you have <b>{me.givingScore} giving points</b> from helping {me.wishesHelped} wish{me.wishesHelped === 1 ? "" : "es"}.</>
           : <>you have no giving points yet, so it starts near the end of the list. <Link href="/feed">Chip in on any wish</Link>, even {usd(limits.min_contribution_cents)}, to move it up.</>}
       </div>
-      <WishForm stripeEnabled={STRIPE_ENABLED} maxPriceCents={limits.max_price_cents} />
+      <WishForm stripeEnabled={STRIPE_ENABLED} maxPriceCents={limits.max_price_cents} userId={me?.id ?? null} />
     </div>
   );
 }

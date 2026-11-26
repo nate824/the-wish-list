@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { notFound } from "next/navigation";
 import { FundingBar } from "@/components/FundingBar";
 import { DEMO_MODE, usd } from "@/lib/config";
-import { getLimits, getMe, getMyFailedPledges, getWish } from "@/lib/data";
+import { getLimits, getMe, getMyFailedPledges, getWish, getWishBioVideo } from "@/lib/data";
 import { sweepPledges } from "@/lib/payments/pledges";
 import { STRIPE_ENABLED } from "@/lib/payments/stripe";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -17,7 +17,7 @@ export default async function WishPage({ params, searchParams }: {
 }) {
   const { id } = await params;
   const { posted, paid, pledged, funded } = await searchParams;
-  const [wish, me, limits] = await Promise.all([getWish(id), getMe(), getLimits()]);
+  const [wish, me, limits, bioVideo] = await Promise.all([getWish(id), getMe(), getLimits(), getWishBioVideo(id)]);
   if (!wish) notFound();
   const failed = me && wish.status === "open" ? await getMyFailedPledges(wish.id, me.id) : [];
 
@@ -62,6 +62,10 @@ export default async function WishPage({ params, searchParams }: {
         <div className="hint">
           {wish.is_anonymous ? "Anonymous wisher" : <><b>{wish.display_name}</b>{wish.bio && ` · ${wish.bio}`}</>}
         </div>
+        {bioVideo && !wish.is_anonymous && (
+          <video src={bioVideo} controls playsInline preload="metadata"
+            style={{ width: "100%", maxHeight: 420, borderRadius: 10, background: "#000" }} />
+        )}
         {wish.status === "open" && <FundingBar wish={wish} detailed />}
       </div>
 

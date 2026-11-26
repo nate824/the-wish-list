@@ -2,11 +2,13 @@
 import { useActionState, useState } from "react";
 import { postWish, type PostState } from "./actions";
 import { usd, wisherFee } from "@/lib/payments/fees";
+import { BioVideoInput } from "./BioVideoInput";
 
-export function WishForm({ stripeEnabled, maxPriceCents }: { stripeEnabled: boolean; maxPriceCents: number }) {
+export function WishForm({ stripeEnabled, maxPriceCents, userId }: { stripeEnabled: boolean; maxPriceCents: number; userId: string | null }) {
   const [state, action, pending] = useActionState<PostState, FormData>(postWish, {});
   const [anon, setAnon] = useState(true);
   const [priceCents, setPriceCents] = useState(0);
+  const [uploading, setUploading] = useState(false);
   return (
     <form action={action} className="panel stack">
       <div>
@@ -37,6 +39,7 @@ export function WishForm({ stripeEnabled, maxPriceCents }: { stripeEnabled: bool
         <>
           <div><label htmlFor="display_name">Display name</label><input id="display_name" name="display_name" type="text" maxLength={60} /></div>
           <div><label htmlFor="bio">Short bio <span className="hint">(optional, 280 chars)</span></label><textarea id="bio" name="bio" maxLength={280} /></div>
+          <BioVideoInput userId={userId} onBusy={setUploading} />
         </>
       )}
       <hr style={{ border: 0, borderTop: "1px solid var(--line)", width: "100%" }} />
@@ -56,7 +59,7 @@ export function WishForm({ stripeEnabled, maxPriceCents }: { stripeEnabled: bool
         </label>
       </div>
       {state.error && <div className="notice err">{state.error}</div>}
-      <button className="btn" disabled={pending}>{pending ? "Checking…" : "Post my wish"}</button>
+      <button className="btn" disabled={pending || uploading}>{uploading ? "Uploading video…" : pending ? "Checking…" : "Post my wish"}</button>
     </form>
   );
 }
