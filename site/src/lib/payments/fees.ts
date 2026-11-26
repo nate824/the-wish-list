@@ -40,8 +40,9 @@ export function giverTotal(priceCents: number, opts: { international?: boolean }
 }
 
 /** What comes out of a card gift before it reaches the wisher. */
-export function wisherFee(priceCents: number, opts: { firstThisMonth: boolean }) {
-  const payoutCents = Math.ceil(priceCents * PAYOUT_FEE_PERCENT) + PAYOUT_FEE_FIXED_CENTS;
+export function wisherFee(priceCents: number, opts: { firstThisMonth: boolean; firstForWish?: boolean }) {
+  const fixed = opts.firstForWish === false ? 0 : PAYOUT_FEE_FIXED_CENTS;
+  const payoutCents = Math.ceil(priceCents * PAYOUT_FEE_PERCENT) + fixed;
   const monthlyCents = opts.firstThisMonth ? MONTHLY_ACTIVE_FEE_CENTS : 0;
   const feeCents = Math.min(priceCents - 1, payoutCents + monthlyCents); // always send at least 1 cent
   return { feeCents, payoutCents, monthlyCents, receiveCents: priceCents - feeCents };

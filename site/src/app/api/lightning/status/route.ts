@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { fail, requireBuyer } from "@/lib/api";
 import { checkSettled } from "@/lib/payments/lightning";
+import { afterChipInVerified } from "@/lib/payments/pledges";
 
 // Lightning step 2: client polls this; we poll the LUD-21 verify URL.
 // TODO: background re-check for buyers who close the tab (lnurl-checklist #5), and expire
@@ -24,5 +25,6 @@ export async function GET(req: Request) {
   const { error } = await auth.admin
     .from("purchases").update({ status: "verified", settled_at: new Date().toISOString() }).eq("id", id);
   if (error) return fail(error.message, 500);
+  await afterChipInVerified(auth.admin, id); // may have closed the gap: charge the card pledges
   return NextResponse.json({ status: "verified" });
 }

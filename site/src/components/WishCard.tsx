@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { usd } from "@/lib/config";
 import type { PublicWish } from "@/lib/types";
+import { FundingBar } from "./FundingBar";
 
 function age(iso: string) {
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400_000);
@@ -10,9 +11,13 @@ function age(iso: string) {
 export function WishCard({ wish }: { wish: PublicWish }) {
   return (
     <Link href={`/wish/${wish.id}`} className="card">
-      <span className={`pill ${wish.tier}`}>{wish.tier}</span>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <span className={`pill ${wish.tier}`}>{wish.tier}</span>
+        {wish.owner_score > 0 && <span className="hint" title="This wisher gives too. Givers rank higher.">⭐ {wish.owner_score}</span>}
+      </div>
       <div className="price">{usd(wish.price_usd_cents)}</div>
       <div className="title">{wish.title}</div>
+      <FundingBar wish={wish} />
       <div className="who">
         {wish.is_anonymous ? "Anonymous" : wish.display_name} · {age(wish.created_at)}
       </div>

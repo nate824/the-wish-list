@@ -30,3 +30,17 @@ Marked so Nate can overrule. Each is a one-line change unless noted.
   or > 2 confirmed gifts from new (< 3 day) buyer accounts -> goes to /admin review instead of verified.
 - Verify-mode payments also check sha256(preimage) == payment hash when the provider returns a preimage.
 17. **Foreign card fee only when the card is foreign** (Nate, 2026-11-23). Card gifts moved from hosted Checkout to the Payment Element on the wish page, because Checkout fixes the amount before we can see the card. The page makes a ConfirmationToken, the server reads the card's issuing country, and non-US cards add 1.5%. If the total changes, the giver sees the new total and presses pay again; nobody is charged more than they were shown. No currency-conversion fee applies, since we charge and settle in USD. Unknown country counts as US. `/api/stripe/checkout` is retired (410).
+
+## Pooled gifts and giver ranking (Nate, 2026-11-25). Replaces the give-to-get gate and drafts (#2, #7, #13).
+Migrations `0008_pledge_statuses.sql` (run alone first) and `0009_pooled_gifts.sql`.
+18. **Wishes always post.** No gate, no drafts (existing drafts go live). Spam brake: max 3 open wishes per person (`app_settings.max_open_wishes`). GUESS, easy to change.
+19. **Price cap $500** (`app_settings.max_wish_price_cents`). Raise it once completion rates are known.
+20. **Anyone can chip in any amount**, min $5 (or whatever's left), never more than what's left. A wish is funded when verified money reaches its price.
+21. **Card chip-ins are pledges.** Card saved with a SetupIntent, charged off-session only once verified money + pledges cover the price. No held money, no refunds. The chip-in that covers the rest charges everyone right away.
+22. **Funding window 14 days**, started by the first pledge (`pledge_window_days`). If not covered, pledges expire, cards are detached, nobody is charged. Next pledge starts a new window. Expiry runs lazily on page loads plus `/api/cron/pledges` (needs `CRON_SECRET` and a scheduler).
+23. **Bitcoin / Lightning chip-ins go to the wisher immediately** and can't be returned, even if the wish never fills. The UI says so.
+24. **Declined card at the end:** pledges already charged still go to the wisher; the declined one is dropped and the gap reopens. The giver sees a notice on the wish page. No email yet (Resend not wired).
+25. **Giving score** = 1 point per wish helped + 1 point per $25 given (`score_points_per_wish`, `score_cents_per_point`). Only verified money counts (crypto verified, cards charged); open pledges don't, so they can't be gamed. Lightning counts like any other rail.
+26. **Feed rank** = wisher's giving score, then oldest first. Tier slices kept; "All" no longer shuffles.
+27. **Wisher payout fee on pooled wishes:** 0.25% per transfer, the fixed 25c once per wish (not per chip-in).
+28. **Founding 100** no longer does anything visible (posting is free for everyone). Counter code left in place.

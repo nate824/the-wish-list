@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { DEMO_MODE, usd } from "@/lib/config";
 import { getMe } from "@/lib/data";
+import { afterChipInVerified } from "@/lib/payments/pledges";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { BIO_VIDEO_BUCKET, bioVideoUrl } from "@/lib/bioVideo";
 
@@ -18,6 +19,7 @@ async function decide(form: FormData) {
     .update({ status: approve ? "verified" : "rejected", review_note: `${approve ? "approved" : "rejected"} by ${me.email}` })
     .eq("id", id)
     .eq("status", "review");
+  if (approve) await afterChipInVerified(supabaseAdmin(), id);
   revalidatePath("/admin");
 }
 
@@ -64,7 +66,7 @@ export default async function Admin() {
   return (
     <div style={{ paddingTop: 32 }} className="stack">
       <h2 className="section">Manual review: unsigned BTC gifts and flagged Lightning confirmations</h2>
-      <p className="hint">Check the txid on mempool.space: does it pay the wish address at least the quoted sats? Approve unlocks the buyer&apos;s wish post and marks the wish funded.</p>
+      <p className="hint">Check the txid on mempool.space: does it pay the wish address at least the quoted sats? Approve counts the gift toward the wish (and the giver&apos;s score).</p>
       {rows.length === 0 ? <div className="notice">Queue is empty.</div> : (
         <table>
           <thead><tr><th>Wish</th><th>Amount</th><th>Tx</th><th></th></tr></thead>

@@ -31,7 +31,7 @@ export default async function GiftsPage() {
       <h1 style={{ margin: 0 }}>Confirm your gifts</h1>
       <p className="hint">
         Your Lightning wallet can&apos;t tell us when a gift lands, so we need you to. Open your wallet, check the
-        sats arrived, then tap &ldquo;I got it&rdquo;. That unlocks the giver&apos;s own wish.
+        sats arrived, then tap &ldquo;I got it&rdquo;. That counts the gift toward your wish and the giver&apos;s score.
       </p>
       {rows.length === 0 ? <div className="notice">Nothing waiting.</div> : rows.map((r) => (
         <div key={r.id} className="panel stack">

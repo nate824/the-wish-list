@@ -107,3 +107,9 @@ nav.main a, .brand { white-space: nowrap; }
   nav.main { gap: 10px; font-size: 0.85rem; }
   nav.main .wide { display: none; }
 }
+
+/* Pooled funding progress: solid = money in, striped = saved cards waiting for the wish to fill */
+.fundbar { display: flex; height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.fundbar .got { background: var(--green); }
+.fundbar .promised { background: repeating-linear-gradient(45deg, var(--green) 0 4px, transparent 4px 8px); opacity: 0.7; }
+.amounts { display: flex; flex-wrap: wrap; gap: 8px; }
