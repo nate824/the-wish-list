@@ -9,21 +9,18 @@ export default async function Home() {
   return (
     <>
       <section className="hero">
-        <h1>Make a wish. Give to move it up.</h1>
-        <p className="lead">
-          A worldwide gift exchange. Post a wish for free. Chip in on a stranger&apos;s, any amount, and yours
-          climbs the list. The more you give, the more people see your wish.
-        </p>
+        <h1>The Wish List</h1>
+        <p className="lead">A worldwide Secret Santa.</p>
         <div className="row">
-          <Link href="/feed" className="btn">Fund a wish</Link>
-          <Link href="/wish/new" className="btn secondary">Make a wish</Link>
+          <Link href="/wish/new" className="btn">Make a wish</Link>
+          <Link href="/feed" className="btn secondary">Grant a wish</Link>
         </div>
       </section>
 
       <div className="steps">
-        <div className="step"><span className="n">1</span><b>Post your wish</b>Up to $500. Anonymous or with your name, your call. It goes live right away.</div>
-        <div className="step"><span className="n">2</span><b>Chip in on others</b>Any amount from $5. Cards are only charged once a wish is fully covered.</div>
-        <div className="step"><span className="n">3</span><b>Climb the list</b>Wishes from people who give rank first. Givers get seen.</div>
+        <div className="step"><span className="n">1</span><b>Make a wish.</b>What&apos;s a gift you&apos;d really love?</div>
+        <div className="step"><span className="n">2</span><b>Grant someone&apos;s wish.</b>Cover the whole gift, or chip in with others.</div>
+        <div className="step"><span className="n">3</span><b>Get yours granted.</b>Someone out there has your back.</div>
       </div>
 
       <h2 className="section">Top of the list</h2>
