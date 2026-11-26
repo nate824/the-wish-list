@@ -2,6 +2,7 @@ import { DEMO_MODE, adminEmails, type Tier } from "./config";
 import { DEMO_FOUNDING_LEFT, DEMO_WISHES } from "./demo";
 import { supabaseServer } from "./supabase/server";
 import type { PublicWish } from "./types";
+import { bioVideoUrl } from "./bioVideo";
 
 export const PER_TIER_PER_PAGE = 4;
 
@@ -57,6 +58,14 @@ export async function getWish(id: string): Promise<PublicWish | null> {
   // Not public: maybe it's the signed-in user's own draft (RLS lets owners read their rows).
   const { data: own } = await sb.from("wishes").select(OWN_WISH_COLUMNS).eq("id", id).eq("status", "draft").maybeSingle();
   return own ? ownToPublic(own as OwnWishRow) : null;
+}
+
+/** Public URL of the wisher's bio video for a public, non-anonymous wish, if they have one that isn't hidden. */
+export async function getWishBioVideo(wishId: string): Promise<string | null> {
+  if (DEMO_MODE) return null;
+  const sb = await supabaseServer();
+  const { data } = await sb.from("wish_bio_videos").select("bio_video_path").eq("wish_id", wishId).maybeSingle();
+  return data?.bio_video_path ? bioVideoUrl(data.bio_video_path) : null;
 }
 
 const OWN_WISH_COLUMNS =

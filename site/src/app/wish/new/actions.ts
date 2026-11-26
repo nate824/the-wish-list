@@ -4,6 +4,7 @@ import { DEMO_MODE } from "@/lib/config";
 import { isValidBtcAddress } from "@/lib/payments/btc";
 import { validateLightningAddress } from "@/lib/payments/lightning";
 import { supabaseServer } from "@/lib/supabase/server";
+import { BIO_VIDEO_BUCKET, isValidBioVideoPath } from "@/lib/bioVideo";
 
 export type PostState = { error?: string };
 
@@ -16,6 +17,7 @@ export async function postWish(_prev: PostState, form: FormData): Promise<PostSt
   const isAnonymous = form.get("anonymous") === "on";
   const displayName = String(form.get("display_name") ?? "").trim();
   const bio = String(form.get("bio") ?? "").trim();
+  const bioVideoPath = String(form.get("bio_video_path") ?? "").trim();
   const btc = String(form.get("btc_address") ?? "").trim();
   const ln = String(form.get("lightning_address") ?? "").trim().toLowerCase();
   const stripe = form.get("accepts_stripe") === "on";
@@ -34,8 +36,24 @@ export async function postWish(_prev: PostState, form: FormData): Promise<PostSt
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect("/login?next=/wish/new");
 
+  if (bioVideoPath && !isValidBioVideoPath(bioVideoPath, user.id)) return { error: "That video upload didn't check out. Try again." };
+
   if (!isAnonymous) {
     await sb.from("profiles").update({ display_name: displayName, bio: bio || null, is_anonymous: false }).eq("user_id", user.id);
+    // Bio video only changes when a new one was uploaded; leaving it blank keeps the current one.
+    if (bioVideoPath) {
+      const { data: prev } = await sb.from("profiles").select("bio_video_path").eq("user_id", user.id).maybeSingle();
+      const { error: vErr } = await sb.from("profiles")
+        .update({ bio_video_path: bioVideoPath, bio_video_updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+      if (vErr) return { error: `Couldn't save your video: ${vErr.message}` };
+      if (prev?.bio_video_path && prev.bio_video_path !== bioVideoPath) {
+        await sb.storage.from(BIO_VIDEO_BUCKET).remove([prev.bio_video_path]);
+      }
+    }
+  } else if (bioVideoPath) {
+    // Posting anonymously: don't keep a video nobody will see.
+    await sb.storage.from(BIO_VIDEO_BUCKET).remove([bioVideoPath]);
   }
 
   // TODO: Turnstile check here (plan section 6)
