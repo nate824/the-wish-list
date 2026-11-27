@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fraunces } from "next/font/google";
 import "./globals.css";
 import { DEMO_MODE, SITE_NAME } from "@/lib/config";
 import { getMe } from "@/lib/data";
+
+const display = Fraunces({ subsets: ["latin"], weight: ["600", "700"], style: ["normal", "italic"], variable: "--font-display", display: "swap" });
 
 export const metadata: Metadata = {
   title: `${SITE_NAME} — a worldwide Secret Santa`,
@@ -12,7 +15,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
   return (
-    <html lang="en">
+    <html lang="en" className={display.variable}>
       <body>
         {DEMO_MODE && (
           <div className="banner">Demo mode: sample wishes, payments and sign-in are off until Supabase is connected.</div>
