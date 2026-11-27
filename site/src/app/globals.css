@@ -195,3 +195,20 @@ nav.main a, .brand { white-space: nowrap; }
 @media (max-width: 560px) {
   .hero.snowy { padding: 40px 22px 40px; border-radius: 18px; margin-top: 18px; }
 }
+
+/* Roadmap */
+.roadmap { list-style: none; margin: 8px 0 0; padding: 0; position: relative; }
+.roadmap::before { content: ""; position: absolute; left: 15px; top: 8px; bottom: 8px; width: 2px; background: var(--line); }
+.roadmap li { position: relative; padding: 0 0 22px 48px; }
+.roadmap .dot {
+  position: absolute; left: 4px; top: 2px; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center;
+  font-size: 0.75rem; color: var(--muted);
+}
+.roadmap li.done .dot { background: var(--green); border-color: var(--green); color: var(--cream); }
+.roadmap li.now .dot { background: var(--gold-soft); border-color: var(--gold); color: var(--ink); }
+.roadmap .goal { font-family: var(--display); font-weight: 700; font-size: 1.15rem; }
+.roadmap .unlock { color: var(--accent); font-weight: 600; }
+.roadmap p { margin: 4px 0 0; }
+.roadmap .fundbar { margin-top: 10px; height: 10px; }
+.roadmap .fundbar .got { background: linear-gradient(90deg, var(--green), var(--gold)); }

@@ -41,7 +41,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <footer className="site">
           <div className="wrap">
             Gifts are voluntary. Bitcoin and Lightning gifts go straight from giver to wisher. Card gifts are processed by Stripe and held there until the wisher sets up payouts. No wish is guaranteed to be funded.
-            Payments are final. You are responsible for any taxes on gifts you receive. <a href="/fees">Fees</a>
+            Payments are final. You are responsible for any taxes on gifts you receive. <a href="/fees">Fees</a> · <a href="/roadmap">Roadmap</a>
           </div>
         </footer>
       </body>

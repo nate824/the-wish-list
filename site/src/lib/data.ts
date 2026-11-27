@@ -127,3 +127,15 @@ export async function getMe(): Promise<Me | null> {
     wishesHelped: profile?.wishes_helped ?? 0,
   };
 }
+
+/** Wishes granted so far (fully funded), for the public roadmap. Null if it can't be read. */
+export async function getWishesGranted(): Promise<number | null> {
+  if (DEMO_MODE) return DEMO_WISHES.filter((w) => w.status === "funded").length;
+  try {
+    const sb = await supabaseServer();
+    const { count, error } = await sb.from("public_wishes").select("id", { count: "exact", head: true }).eq("status", "funded");
+    return error ? null : count ?? 0;
+  } catch {
+    return null;
+  }
+}
