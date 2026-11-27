@@ -69,6 +69,11 @@ export default function FeesPage() {
         Gifts are final. If a card payment is disputed, Stripe charges a dispute fee and the gift may be reversed.
         Stripe doesn&apos;t return its processing fee on refunds.
       </p>
+
+      <h2>Where is this going?</h2>
+      <p>
+        Higher price caps, a registered charity, and more. See the <a href="/roadmap">roadmap</a>.
+      </p>
     </div>
   );
 }
