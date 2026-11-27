@@ -10,7 +10,7 @@ function age(iso: string) {
 
 export function WishCard({ wish }: { wish: PublicWish }) {
   return (
-    <Link href={`/wish/${wish.id}`} className="card">
+    <Link href={`/wish/${wish.id}`} className={`card tier-${wish.tier}`}>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <span className={`pill ${wish.tier}`}>{wish.tier}</span>
         {wish.owner_score > 0 && <span className="hint" title="This wisher gives too. Givers rank higher.">⭐ {wish.owner_score}</span>}
